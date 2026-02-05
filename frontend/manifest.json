@@ -1,0 +1,12 @@
+{
+  "name": "I Ching Hexagram Reader",
+  "description": "An application for generating and recording I Ching hexagrams on the Stacks blockchain",
+  "icon": "icon.png",
+  "api": {
+    "chains": {
+      "stacks": "https://stacks-node-api.mainnet.stacks.co"
+    },
+    "contractAddress": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM",
+    "contractName": "hexagram-registry"
+  }
+}
