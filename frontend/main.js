@@ -55,32 +55,32 @@ class IChingApp {
   constructor() {
     this.currentHexagram = [];
     this.transformedHexagram = [];
-    this.coinRolls = [];
     this.isAuthenticated = false;
     this.currentAddress = null;
+    this.recordValues = [7, 7, 7, 7, 7, 7];
 
     console.log(`I Ching App initialized on ${getCurrentNetwork()} network`);
 
     this.initializeElements();
     this.bindEvents();
+    this.createRecordCircles();
+    this.updatePreviewFromRecord();
     this.loadHistory();
     this.updateUI();
   }
 
   initializeElements() {
     this.connectBtn = document.getElementById('connect-btn');
-    this.rollBtn = document.getElementById('roll-btn');
     this.submitBtn = document.getElementById('submit-btn');
     this.addressDisplay = document.getElementById('address-display');
-    this.coinRollsDiv = document.getElementById('coin-rolls');
     this.currentHexagramDiv = document.getElementById('current-hexagram');
     this.transformedHexagramDiv = document.getElementById('transformed-hexagram');
     this.historyDiv = document.getElementById('hexagram-history');
+    this.recordLinesDiv = document.getElementById('record-lines');
   }
 
   bindEvents() {
     this.connectBtn.addEventListener('click', () => this.handleConnect());
-    this.rollBtn.addEventListener('click', () => this.generateHexagram());
     this.submitBtn.addEventListener('click', () => this.submitToBlockchain());
   }
 
@@ -136,81 +136,6 @@ class IChingApp {
     this.updateUI();
   }
 
-  generateHexagram() {
-    this.currentHexagram = [];
-    this.transformedHexagram = [];
-    this.coinRolls = [];
-
-    // Generate 6 lines (bottom to top)
-    for (let i = 0; i < 6; i++) {
-      const lineData = this.generateLine();
-      this.currentHexagram.push(lineData.currentValue);
-      this.transformedHexagram.push(lineData.transformedValue);
-      this.coinRolls.push(lineData.rolls);
-    }
-
-    this.displayCoinRolls();
-    this.displayHexagram(this.currentHexagram, this.currentHexagramDiv, "Current Hexagram");
-    this.displayHexagram(this.transformedHexagram, this.transformedHexagramDiv, "Transformed Hexagram");
-    this.submitBtn.disabled = !this.isAuthenticated;
-  }
-
-  generateLine() {
-    const rolls = [];
-    let total = 0;
-
-    for (let j = 0; j < 3; j++) {
-      const result = Math.random() < 0.5 ? 2 : 3;
-      rolls.push(result);
-      total += result;
-    }
-
-    let currentValue, transformedValue;
-
-    switch(total) {
-      case 6:
-        currentValue = 6; // Old Yin
-        transformedValue = 7; // Becomes Young Yang
-        break;
-      case 7:
-        currentValue = 7; // Young Yang
-        transformedValue = 7; // Remains Young Yang
-        break;
-      case 8:
-        currentValue = 8; // Young Yin
-        transformedValue = 8; // Remains Young Yin
-        break;
-      case 9:
-        currentValue = 9; // Old Yang
-        transformedValue = 6; // Becomes Young Yin
-        break;
-      default:
-        currentValue = 7;
-        transformedValue = 7;
-    }
-
-    return {
-      rolls: rolls,
-      total: total,
-      currentValue: currentValue,
-      transformedValue: transformedValue
-    };
-  }
-
-  displayCoinRolls() {
-    this.coinRollsDiv.innerHTML = '<h3>Coin Rolls:</h3>';
-
-    this.coinRolls.forEach((rolls, index) => {
-      const lineDiv = document.createElement('div');
-      lineDiv.className = 'line-roll';
-      lineDiv.innerHTML = `
-        <strong>Line ${6-index}:</strong>
-        ${rolls.map(r => r === 2 ? 'Tails (2)' : 'Heads (3)').join(' + ')} = ${rolls.reduce((a, b) => a + b, 0)}
-      `;
-      this.coinRollsDiv.appendChild(lineDiv);
-    });
-  }
-
   displayHexagram(hexagram, container, label) {
     container.innerHTML = '';
 
@@ -230,17 +155,88 @@ class IChingApp {
             <div class="broken-line-part"></div>
             <div class="broken-line-part"></div>
           </div>
-          <small>Line ${6-i}: ${lineValue === 6 ? 'Old Yin (Changing)' : 'Young Yin'}</small>
         `;
       } else {
         lineDiv.innerHTML = `
           <div class="solid-line"></div>
-          <small>Line ${6-i}: ${lineValue === 9 ? 'Old Yang (Changing)' : 'Young Yang'}</small>
         `;
       }
 
       container.appendChild(lineDiv);
     }
+
+    const binary = this.toBinary(hexagram);
+    const numberDiv = document.createElement('div');
+    numberDiv.className = 'hexagram-number';
+    numberDiv.textContent = this.hexagramNumber(binary);
+    container.appendChild(numberDiv);
+  }
+
+  createRecordCircles() {
+    this.recordLinesDiv.innerHTML = '';
+
+    for (let i = 0; i < 6; i++) {
+      const row = document.createElement('div');
+      row.className = 'record-row';
+
+      const lineLabel = document.createElement('span');
+      lineLabel.className = 'record-line-label';
+      lineLabel.textContent = i + 1;
+      row.appendChild(lineLabel);
+
+      const circle = document.createElement('div');
+      circle.className = `record-circle ${this.isChangingLine(this.recordValues[i]) ? 'changing' : 'stable'}`;
+      circle.textContent = this.recordValues[i];
+      circle.addEventListener('click', () => this.cycleRecordValue(i));
+      row.appendChild(circle);
+
+      const typeLabel = document.createElement('span');
+      typeLabel.className = 'record-type-label';
+      typeLabel.textContent = this.getLineTypeName(this.recordValues[i]);
+      row.appendChild(typeLabel);
+
+      this.recordLinesDiv.appendChild(row);
+    }
+  }
+
+  cycleRecordValue(index) {
+    const cycle = [6, 7, 8, 9];
+    const nextIndex = (cycle.indexOf(this.recordValues[index]) + 1) % cycle.length;
+    this.recordValues[index] = cycle[nextIndex];
+    this.createRecordCircles();
+    this.updatePreviewFromRecord();
+  }
+
+  updatePreviewFromRecord() {
+    this.currentHexagram = [...this.recordValues];
+    this.transformedHexagram = this.recordValues.map(v => this.getTransformedValue(v));
+    this.displayHexagram(this.currentHexagram, this.currentHexagramDiv, "Current Hexagram");
+    this.displayHexagram(this.transformedHexagram, this.transformedHexagramDiv, "Future Hexagram");
+    this.submitBtn.disabled = !this.isAuthenticated;
+  }
+
+  getTransformedValue(value) {
+    switch (value) {
+      case 6: return 7;
+      case 7: return 7;
+      case 8: return 8;
+      case 9: return 6;
+      default: return value;
+    }
+  }
+
+  getLineTypeName(value) {
+    switch (value) {
+      case 6: return 'Old Yin (Changing)';
+      case 7: return 'Young Yang';
+      case 8: return 'Young Yin';
+      case 9: return 'Old Yang (Changing)';
+      default: return '';
+    }
+  }
+
+  isChangingLine(value) {
+    return value === 6 || value === 9;
   }
 
   async submitToBlockchain() {
@@ -256,15 +252,14 @@ class IChingApp {
       const contractConfig = getContractConfig();
 
       // Prepare transaction arguments
-      const originalHexagramCV = listCV(this.currentHexagram.map(n => uintCV(n)));
-      const transformedHexagramCV = listCV(this.transformedHexagram.map(n => uintCV(n)));
+      const hexagramCV = listCV(this.currentHexagram.map(n => uintCV(n)));
       const timestampCV = uintCV(Math.floor(Date.now() / 1000));
 
       const txOptions = {
         contractAddress: contractConfig.address,
         contractName: contractConfig.name,
-        functionName: 'submit-hexagram-pair',
-        functionArgs: [originalHexagramCV, transformedHexagramCV, timestampCV],
+        functionName: 'submit-hexagram',
+        functionArgs: [hexagramCV, timestampCV],
         senderKey: DEVNET_DEPLOYER_KEY,
         network: networkConfig,
         anchorMode: AnchorMode.Any,
@@ -298,7 +293,6 @@ class IChingApp {
     const hexagramRecord = {
       id: Date.now(),
       original: [...this.currentHexagram],
-      transformed: [...this.transformedHexagram],
       timestamp: Date.now(),
       date: new Date().toISOString(),
       txId: txId,
@@ -309,6 +303,23 @@ class IChingApp {
     records.push(hexagramRecord);
     localStorage.setItem('ichingRecords', JSON.stringify(records));
     this.loadHistory();
+  }
+
+  toBinary(values) {
+    return values.map(v => (v === 7 || v === 9) ? 1 : 0);
+  }
+
+  hexagramNumber(binaryValues) {
+    return binaryValues.reduce((sum, bit, i) => sum + (bit << i), 0);
+  }
+
+  renderMiniHexagram(binaryValues) {
+    return binaryValues.map(v => {
+      if (v === 1) {
+        return '<div class="mini-line solid"></div>';
+      }
+      return '<div class="mini-line broken"><span></span><span></span></div>';
+    }).join('');
   }
 
   loadHistory() {
@@ -328,18 +339,26 @@ class IChingApp {
 
       const date = new Date(record.date).toLocaleString();
       const networkBadge = record.network ? `[${record.network}]` : '';
+      const currentBinary = this.toBinary(record.original);
+      const futureBinary = this.toBinary(record.original.map(v => this.getTransformedValue(v)));
+      const currentNumber = this.hexagramNumber(currentBinary);
+      const futureNumber = this.hexagramNumber(futureBinary);
 
       li.innerHTML = `
         <div class="history-date">${date} ${networkBadge}</div>
-        <div class="hexagram-preview">
-          <div class="hexagram-line">
-            <span>Current: [${record.original.join(', ')}]</span>
+        <div class="history-hexagrams">
+          <div class="mini-hexagram-group">
+            <div class="mini-hexagram-number">${currentNumber}</div>
+            <div class="mini-hexagram">${this.renderMiniHexagram(currentBinary)}</div>
           </div>
-          <div class="hexagram-line">
-            <span>Transformed: [${record.transformed.join(', ')}]</span>
+          <span class="history-arrow">&rarr;</span>
+          <div class="mini-hexagram-group">
+            <div class="mini-hexagram-number">${futureNumber}</div>
+            <div class="mini-hexagram">${this.renderMiniHexagram(futureBinary)}</div>
           </div>
-          ${record.txId ? `<div><small>TX: ${record.txId.substring(0, 20)}...</small></div>` : ''}
+          <div class="history-raw">${record.original.join('')}</div>
         </div>
+        ${record.txId ? `<div><small>TX: ${record.txId.substring(0, 20)}...</small></div>` : ''}
       `;
 
       list.appendChild(li);

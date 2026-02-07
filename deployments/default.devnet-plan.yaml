@@ -11,7 +11,7 @@ plan:
         - contract-publish:
             contract-name: hexagram-registry
             expected-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
-            cost: 38740
+            cost: 31800
             path: contracts/hexagram-registry.clar
             anchor-block-only: true
             clarity-version: 2

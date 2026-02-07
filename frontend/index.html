@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>I Ching Hexagram Reader</title>
+    <title>I CHING</title>
     <meta name="description" content="Generate and record I Ching hexagrams on the Stacks blockchain">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>I Ching Hexagram Reader</h1>
+            <h1>I CHING</h1>
             <div id="wallet-status">
                 <span id="address-display">Not connected</span>
                 <button id="connect-btn">Connect Wallet</button>
@@ -19,26 +19,32 @@
         
         <main>
             <section id="hexagram-generator">
-                <h2>Generate Hexagram</h2>
-                <button id="roll-btn">Roll Coins</button>
-                <div id="coin-rolls"></div>
-                <div id="hexagram-display">
-                    <div id="current-hexagram" class="hexagram">
-                        <div class="line-placeholder">Your hexagram will appear here</div>
-                    </div>
-                    <div id="transformed-hexagram" class="hexagram">
-                        <div class="line-placeholder">Transformed hexagram will appear here</div>
-                    </div>
-                </div>
+                <h2>Record Hexagram</h2>
+                <p class="record-instructions">Click each circle to cycle line values</p>
+                <div id="record-lines"></div>
                 <button id="submit-btn" disabled>Submit to Blockchain</button>
             </section>
-            
-            <section id="history">
-                <h2>Your Hexagram History</h2>
-                <div id="hexagram-history">
-                    <p>No hexagrams recorded yet.</p>
-                </div>
-            </section>
+
+            <div id="right-panel">
+                <section id="preview">
+                    <h2>Hexagram Preview</h2>
+                    <div id="hexagram-display">
+                        <div id="current-hexagram" class="hexagram">
+                            <div class="line-placeholder">Your hexagram will appear here</div>
+                        </div>
+                        <div id="transformed-hexagram" class="hexagram">
+                            <div class="line-placeholder">Future hexagram will appear here</div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="history">
+                    <h2>Your Hexagram History</h2>
+                    <div id="hexagram-history">
+                        <p>No hexagrams recorded yet.</p>
+                    </div>
+                </section>
+            </div>
         </main>
     </div>
     

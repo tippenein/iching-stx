@@ -1,13 +1,8 @@
 ;; title: Hexagram Registry
-;; version: 1.0
+;; version: 2.0
 ;; summary: A contract to record I Ching hexagram readings with timestamps
-;; description: This contract allows users to submit pairs of hexagrams (original and transformed) with timestamps
-
-;; traits
-;;
-
-;; token definitions
-;;
+;; description: This contract allows users to submit hexagrams (6 lines, values 6-9) with timestamps.
+;; The transformed hexagram is derivable from the original (6->7, 7->7, 8->8, 9->6).
 
 ;; constants
 (define-constant ERR_UNAUTHORIZED (err u1))
@@ -18,47 +13,40 @@
 (define-data-var next-id uint u1)
 
 ;; data maps
-(define-map hexagrams 
-  { id: uint, owner: principal } 
-  { original-hexagram: (list 6 uint), transformed-hexagram: (list 6 uint), timestamp: uint })
+(define-map hexagrams
+  { id: uint, owner: principal }
+  { hexagram: (list 6 uint), timestamp: uint })
 
 (define-map owner-hexagrams
   { owner: principal }
   { hexagram-ids: (list 100 uint) })
 
 ;; public functions
-(define-public (submit-hexagram-pair
-  (original-hexagram (list 6 uint))
-  (transformed-hexagram (list 6 uint))
+(define-public (submit-hexagram
+  (hexagram (list 6 uint))
   (timestamp uint)
 )
   (let (
     (current-id (var-get next-id))
-    (valid-original (is-valid-hexagram original-hexagram))
-    (valid-transformed (is-valid-hexagram transformed-hexagram))
+    (valid (is-valid-hexagram hexagram))
   )
-    (if (and valid-original valid-transformed)
+    (if valid
       (begin
-        (map-insert hexagrams 
+        (map-insert hexagrams
           { id: current-id, owner: tx-sender }
-          { original-hexagram: original-hexagram, transformed-hexagram: transformed-hexagram, timestamp: timestamp })
-        
-        ;; Update the owner's list of hexagram IDs - simplified approach
+          { hexagram: hexagram, timestamp: timestamp })
+
         (let (
           (existing-ids-entry (map-get? owner-hexagrams { owner: tx-sender }))
         )
           (if (is-none existing-ids-entry)
-            ;; If no existing entry, create a new list with the current ID
-            (map-insert owner-hexagrams 
+            (map-insert owner-hexagrams
               { owner: tx-sender }
               { hexagram-ids: (list current-id) })
-            ;; If entry exists, we'll skip updating for now due to complexity
-            ;; In a real implementation, we'd have to use a different approach
-            ;; such as storing multiple map entries per user
-            true  ;; Placeholder expression
+            true
           )
         )
-        
+
         (var-set next-id (+ current-id u1))
         (ok current-id)
       )
@@ -124,7 +112,6 @@
   )
 )
 
-;; Allow contract to get its own data
 (define-read-only (get-hexagram-entry (id uint) (owner principal))
   (map-get? hexagrams { id: id, owner: owner })
 )
