@@ -1,3 +1,22 @@
+
+:root {
+    --bg-deep: #1a1a2e;
+    --bg-panel: #1e1e35;
+    --bg-inset: #151528;
+    --border: #3a3654;
+    --border-light: #4a4568;
+    --text: #d4cec4;
+    --text-dim: #8a8498;
+    --text-faint: #5a5470;
+    --accent-warm: #c4956a;
+    --accent-gold: #b89a6a;
+    --accent-teal: #6a9a9e;
+    --accent-rose: #9e6a7a;
+    --accent-cream: #e8dcc8;
+    --line-yang: #c4956a;
+    --line-yin: #6a9a9e;
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -5,98 +24,151 @@
 }
 
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: 'IBM Plex Sans', 'Helvetica Neue', sans-serif;
+    font-weight: 300;
     line-height: 1.6;
-    color: #333;
-    background-color: #f5f5f5;
+    color: var(--text);
+    background: var(--bg-deep);
+    min-height: 100vh;
+    font-size: 16px;
 }
 
 .container {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 20px;
+    padding: 24px;
 }
 
+/* ---- HEADER ---- */
 header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 30px;
-    padding: 20px;
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    margin-bottom: 32px;
+    padding: 24px 32px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    position: relative;
+}
+
+header::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 32px;
+    right: 32px;
+    height: 1px;
+    background: linear-gradient(90deg, var(--accent-warm), var(--accent-teal));
+    opacity: 0.3;
 }
 
 header h1 {
-    color: #2c3e50;
+    font-family: 'Cormorant Garamond', 'Georgia', serif;
+    font-weight: 600;
+    font-size: 2.2em;
+    color: var(--accent-cream);
+    letter-spacing: 12px;
+    text-transform: uppercase;
 }
 
 #wallet-status {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 14px;
 }
 
 #address-display {
-    font-size: 0.9em;
-    color: #7f8c8d;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75em;
+    color: var(--text-dim);
+    letter-spacing: 0.5px;
 }
 
+/* ---- BUTTONS ---- */
 #connect-btn, #submit-btn {
-    padding: 10px 20px;
-    background: #3498db;
-    color: white;
-    border: none;
-    border-radius: 4px;
+    padding: 10px 22px;
+    background: transparent;
+    color: var(--accent-teal);
+    border: 1px solid var(--accent-teal);
     cursor: pointer;
-    font-size: 1em;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7em;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    transition: color 0.3s, border-color 0.3s, background 0.3s;
 }
 
 #connect-btn:hover, #submit-btn:hover {
-    background: #2980b9;
+    background: var(--accent-teal);
+    color: var(--bg-deep);
+}
+
+#submit-btn {
+    border-color: var(--accent-warm);
+    color: var(--accent-warm);
+    margin-top: 24px;
+    width: 100%;
+}
+
+#submit-btn:hover {
+    background: var(--accent-warm);
+    color: var(--bg-deep);
 }
 
 #submit-btn:disabled {
-    background: #bdc3c7;
+    border-color: var(--border);
+    color: var(--text-faint);
     cursor: not-allowed;
 }
 
+#submit-btn:disabled:hover {
+    background: transparent;
+    color: var(--text-faint);
+}
+
+/* ---- LAYOUT ---- */
 main {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 30px;
+    gap: 32px;
 }
 
 section {
-    background: white;
-    padding: 25px;
-    border-radius: 8px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    background: var(--bg-panel);
+    padding: 28px;
+    border: 1px solid var(--border);
+    position: relative;
 }
 
 h2 {
+    font-family: 'Cormorant Garamond', 'Georgia', serif;
+    font-weight: 600;
+    font-size: 1.05em;
     margin-bottom: 20px;
-    color: #2c3e50;
-    border-bottom: 2px solid #ecf0f1;
-    padding-bottom: 10px;
+    color: var(--accent-gold);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 12px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
 }
 
+/* ---- HEXAGRAM DISPLAY ---- */
 .hexagram {
-    margin: 20px 0;
+    margin: 16px 0;
     min-height: 200px;
-    border: 1px solid #eee;
-    border-radius: 4px;
-    padding: 15px;
+    border: 1px solid var(--border);
+    padding: 16px;
     display: flex;
-    flex-direction: column-reverse; /* Bottom to top */
+    flex-direction: column-reverse;
+    background: var(--bg-inset);
 }
 
 .line-placeholder {
     text-align: center;
     padding: 20px;
-    color: #95a5a6;
+    color: var(--text-faint);
     font-style: italic;
+    font-size: 0.9em;
 }
 
 .hexagram-line {
@@ -107,10 +179,10 @@ h2 {
 }
 
 .solid-line {
-    background: #2c3e50;
+    background: var(--line-yang);
     width: 100%;
-    height: 8px;
-    position: relative;
+    height: 6px;
+    opacity: 0.85;
 }
 
 .broken-line {
@@ -120,89 +192,72 @@ h2 {
 }
 
 .broken-line-part {
-    background: #2c3e50;
-    height: 8px;
-    width: 48%; /* Leave a small gap in the middle */
+    background: var(--line-yin);
+    height: 6px;
+    width: 46%;
+    opacity: 0.85;
 }
 
 .hexagram-label {
     text-align: center;
-    margin-top: 10px;
-    font-weight: bold;
-    color: #7f8c8d;
+    margin-top: 12px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65em;
+    color: var(--text-dim);
+    letter-spacing: 3px;
+    text-transform: uppercase;
 }
 
-#history ul {
-    list-style-type: none;
+.hexagram-number {
+    text-align: center;
+    font-family: 'Cormorant Garamond', 'Georgia', serif;
+    font-size: 2em;
+    font-weight: 700;
+    color: var(--accent-cream);
+    margin-bottom: 4px;
 }
 
-.history-item {
-    padding: 15px;
-    margin-bottom: 10px;
-    border-left: 4px solid #3498db;
-    background: #f8f9fa;
-    border-radius: 0 4px 4px 0;
-}
-
-.history-date {
-    font-size: 0.8em;
-    color: #7f8c8d;
-}
-
-#right-panel {
-    display: flex;
-    flex-direction: column;
-    gap: 30px;
-}
-
-#hexagram-display {
-    display: flex;
-    gap: 20px;
-}
-
-#hexagram-display .hexagram {
-    flex: 1;
-    margin: 0;
-}
-
+/* ---- RECORD CIRCLES ---- */
 .record-instructions {
-    color: #7f8c8d;
-    font-size: 0.9em;
-    margin-bottom: 15px;
+    color: var(--text-dim);
+    font-size: 0.85em;
+    margin-bottom: 16px;
+    font-style: italic;
 }
 
 #record-lines {
     display: flex;
     flex-direction: column-reverse;
-    gap: 8px;
-    padding: 10px 0;
+    gap: 6px;
+    padding: 8px 0;
 }
 
 .record-row {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 14px;
 }
 
 .record-line-label {
     width: 16px;
-    font-size: 0.85em;
-    color: #7f8c8d;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7em;
+    color: var(--text-faint);
     text-align: right;
 }
 
 .record-circle {
-    width: 48px;
-    height: 48px;
+    width: 46px;
+    height: 46px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.2em;
-    font-weight: bold;
-    color: white;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.85em;
+    color: var(--accent-cream);
     cursor: pointer;
-    transition: background-color 0.2s, transform 0.1s;
+    transition: all 0.25s ease;
     user-select: none;
 }
 
@@ -215,16 +270,70 @@ h2 {
 }
 
 .record-circle.stable {
-    background: #2c3e50;
+    background: var(--bg-inset);
+    border: 1px solid var(--accent-teal);
+}
+
+.record-circle.stable:hover {
+    background: #1a2a30;
+    border-color: var(--accent-cream);
 }
 
 .record-circle.changing {
-    background: #e67e22;
+    background: var(--bg-inset);
+    border: 1px solid var(--accent-warm);
+}
+
+.record-circle.changing:hover {
+    background: #2a2018;
+    border-color: var(--accent-cream);
 }
 
 .record-type-label {
-    font-size: 0.85em;
-    color: #7f8c8d;
+    font-size: 0.8em;
+    color: var(--text-faint);
+    font-style: italic;
+}
+
+/* ---- RIGHT PANEL ---- */
+#right-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+}
+
+#hexagram-display {
+    display: flex;
+    gap: 20px;
+}
+
+#hexagram-display .hexagram {
+    flex: 1;
+    margin: 0;
+}
+
+/* ---- HISTORY ---- */
+#history ul {
+    list-style-type: none;
+}
+
+.history-item {
+    padding: 14px 16px;
+    margin-bottom: 8px;
+    border-left: 2px solid var(--accent-warm);
+    background: var(--bg-inset);
+    transition: border-color 0.3s;
+}
+
+.history-item:hover {
+    border-left-color: var(--accent-teal);
+}
+
+.history-date {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7em;
+    color: var(--text-faint);
+    letter-spacing: 0.5px;
 }
 
 .history-hexagrams {
@@ -235,16 +344,8 @@ h2 {
 }
 
 .history-arrow {
-    color: #7f8c8d;
-    font-size: 1.2em;
-}
-
-.hexagram-number {
-    text-align: center;
-    font-size: 1.5em;
-    font-weight: bold;
-    color: #2c3e50;
-    margin-bottom: 4px;
+    color: var(--text-faint);
+    font-size: 1.1em;
 }
 
 .mini-hexagram-group {
@@ -254,16 +355,17 @@ h2 {
 }
 
 .mini-hexagram-number {
-    font-size: 0.9em;
-    font-weight: bold;
-    color: #2c3e50;
-    margin-bottom: 2px;
+    font-family: 'Cormorant Garamond', 'Georgia', serif;
+    font-size: 0.95em;
+    font-weight: 700;
+    color: var(--accent-cream);
+    margin-bottom: 3px;
 }
 
 .history-raw {
-    font-family: monospace;
-    font-size: 0.9em;
-    color: #7f8c8d;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75em;
+    color: var(--text-faint);
     letter-spacing: 2px;
     align-self: center;
 }
@@ -276,25 +378,34 @@ h2 {
 }
 
 .mini-line.solid {
-    height: 5px;
-    width: 50px;
-    background: #2c3e50;
+    height: 4px;
+    width: 44px;
+    background: var(--line-yang);
+    opacity: 0.8;
 }
 
 .mini-line.broken {
     display: flex;
     justify-content: space-between;
-    width: 50px;
-    height: 5px;
+    width: 44px;
+    height: 4px;
 }
 
 .mini-line.broken span {
     display: block;
-    height: 5px;
-    width: 45%;
-    background: #2c3e50;
+    height: 4px;
+    width: 44%;
+    background: var(--line-yin);
+    opacity: 0.8;
 }
 
+.history-item small {
+    color: var(--text-faint);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7em;
+}
+
+/* ---- RESPONSIVE ---- */
 @media (max-width: 768px) {
     main {
         grid-template-columns: 1fr;
@@ -302,7 +413,12 @@ h2 {
 
     header {
         flex-direction: column;
-        gap: 15px;
+        gap: 16px;
+    }
+
+    header h1 {
+        font-size: 1.6em;
+        letter-spacing: 8px;
     }
 
     #hexagram-display {
