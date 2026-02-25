@@ -3,7 +3,7 @@ import {
   makeContractCall,
   broadcastTransaction,
   uintCV,
-  listCV,
+  bufferCV,
   AnchorMode,
   PostConditionMode
 } from '@stacks/transactions'
@@ -13,6 +13,12 @@ import {
   STACKS_TESTNET,
   STACKS_MAINNET
 } from '@stacks/network'
+
+import {
+  encryptContent,
+  decryptContent,
+  getPublicKeyFromPrivate
+} from '@stacks/encryption'
 
 // Configuration constants
 const CONTRACT_CONFIG = {
@@ -28,6 +34,7 @@ const CONTRACT_CONFIG = {
 
 // Deployer private key for devnet testing (only safe for local development)
 const DEVNET_DEPLOYER_KEY = '753b7cc01a1a2e86221266a154af739463fce51219d97e4f856cd7200c3bd2a601';
+const DEVNET_DEPLOYER_PUBKEY = getPublicKeyFromPrivate(DEVNET_DEPLOYER_KEY);
 
 // Utility functions
 function getCurrentNetwork() {
@@ -57,7 +64,9 @@ class IChingApp {
     this.transformedHexagram = [];
     this.isAuthenticated = false;
     this.currentAddress = null;
-    this.recordValues = [7, 7, 7, 7, 7, 7];
+    this.recordValues = [null, null, null, null, null, null];
+    this.appPrivateKey = null;
+    this.appPublicKey = null;
 
     console.log(`I Ching App initialized on ${getCurrentNetwork()} network`);
 
@@ -124,6 +133,12 @@ class IChingApp {
     if (address) {
       this.isAuthenticated = true;
       this.currentAddress = address;
+
+      if (authData.appPrivateKey) {
+        this.appPrivateKey = authData.appPrivateKey;
+        this.appPublicKey = getPublicKeyFromPrivate(authData.appPrivateKey);
+      }
+
       localStorage.setItem('stacks-session', JSON.stringify(authData));
       this.updateUI();
     }
@@ -132,12 +147,42 @@ class IChingApp {
   logout() {
     this.isAuthenticated = false;
     this.currentAddress = null;
+    this.appPrivateKey = null;
+    this.appPublicKey = null;
     localStorage.removeItem('stacks-session');
     this.updateUI();
   }
 
+  getEncryptionPublicKey() {
+    return this.appPublicKey || DEVNET_DEPLOYER_PUBKEY;
+  }
+
+  getDecryptionPrivateKey() {
+    return this.appPrivateKey || DEVNET_DEPLOYER_KEY;
+  }
+
+  async encryptHexagram(values) {
+    const json = JSON.stringify(values);
+    const publicKey = this.getEncryptionPublicKey();
+    const cipherText = await encryptContent(json, { publicKey });
+    return cipherText;
+  }
+
+  async decryptHexagram(cipherText) {
+    const privateKey = this.getDecryptionPrivateKey();
+    const json = await decryptContent(cipherText, { privateKey });
+    return JSON.parse(json);
+  }
+
   displayHexagram(hexagram, container, label) {
     container.innerHTML = '';
+
+    const allFilled = hexagram.every(v => v !== null);
+    if (!allFilled) {
+      container.classList.add('grayed-out');
+    } else {
+      container.classList.remove('grayed-out');
+    }
 
     const labelDiv = document.createElement('div');
     labelDiv.className = 'hexagram-label';
@@ -149,7 +194,10 @@ class IChingApp {
       const lineDiv = document.createElement('div');
       lineDiv.className = 'hexagram-line';
 
-      if (lineValue === 6 || lineValue === 8) {
+      if (lineValue === null) {
+        lineDiv.classList.add('placeholder');
+        lineDiv.innerHTML = `<div class="placeholder-line"></div>`;
+      } else if (lineValue === 6 || lineValue === 8) {
         lineDiv.innerHTML = `
           <div class="broken-line">
             <div class="broken-line-part"></div>
@@ -165,10 +213,14 @@ class IChingApp {
       container.appendChild(lineDiv);
     }
 
-    const binary = this.toBinary(hexagram);
     const numberDiv = document.createElement('div');
     numberDiv.className = 'hexagram-number';
-    numberDiv.textContent = this.hexagramNumber(binary);
+    if (allFilled) {
+      const binary = this.toBinary(hexagram);
+      numberDiv.textContent = this.hexagramNumber(binary);
+    } else {
+      numberDiv.textContent = '—';
+    }
     container.appendChild(numberDiv);
   }
 
@@ -184,15 +236,23 @@ class IChingApp {
       lineLabel.textContent = i + 1;
       row.appendChild(lineLabel);
 
+      const value = this.recordValues[i];
       const circle = document.createElement('div');
-      circle.className = `record-circle ${this.isChangingLine(this.recordValues[i]) ? 'changing' : 'stable'}`;
-      circle.textContent = this.recordValues[i];
+
+      if (value === null) {
+        circle.className = 'record-circle unfilled';
+        circle.textContent = '—';
+      } else {
+        circle.className = `record-circle ${this.isChangingLine(value) ? 'changing' : 'stable'}`;
+        circle.textContent = value;
+      }
+
       circle.addEventListener('click', () => this.cycleRecordValue(i));
       row.appendChild(circle);
 
       const typeLabel = document.createElement('span');
       typeLabel.className = 'record-type-label';
-      typeLabel.textContent = this.getLineTypeName(this.recordValues[i]);
+      typeLabel.textContent = value === null ? '' : this.getLineTypeName(value);
       row.appendChild(typeLabel);
 
       this.recordLinesDiv.appendChild(row);
@@ -201,18 +261,23 @@ class IChingApp {
 
   cycleRecordValue(index) {
     const cycle = [6, 7, 8, 9];
-    const nextIndex = (cycle.indexOf(this.recordValues[index]) + 1) % cycle.length;
-    this.recordValues[index] = cycle[nextIndex];
+    if (this.recordValues[index] === null) {
+      this.recordValues[index] = cycle[0];
+    } else {
+      const nextIndex = (cycle.indexOf(this.recordValues[index]) + 1) % cycle.length;
+      this.recordValues[index] = cycle[nextIndex];
+    }
     this.createRecordCircles();
     this.updatePreviewFromRecord();
   }
 
   updatePreviewFromRecord() {
     this.currentHexagram = [...this.recordValues];
-    this.transformedHexagram = this.recordValues.map(v => this.getTransformedValue(v));
+    this.transformedHexagram = this.recordValues.map(v => v === null ? null : this.getTransformedValue(v));
     this.displayHexagram(this.currentHexagram, this.currentHexagramDiv, "Current Hexagram");
     this.displayHexagram(this.transformedHexagram, this.transformedHexagramDiv, "Future Hexagram");
-    this.submitBtn.disabled = !this.isAuthenticated;
+    const allFilled = this.recordValues.every(v => v !== null);
+    this.submitBtn.disabled = !this.isAuthenticated || !allFilled;
   }
 
   getTransformedValue(value) {
@@ -251,8 +316,10 @@ class IChingApp {
       const networkConfig = getNetworkConfig();
       const contractConfig = getContractConfig();
 
-      // Prepare transaction arguments
-      const hexagramCV = listCV(this.currentHexagram.map(n => uintCV(n)));
+      // Encrypt hexagram data before submitting
+      const cipherText = await this.encryptHexagram(this.currentHexagram);
+      const cipherBytes = new TextEncoder().encode(cipherText);
+      const hexagramCV = bufferCV(cipherBytes);
       const timestampCV = uintCV(Math.floor(Date.now() / 1000));
 
       const txOptions = {
@@ -277,11 +344,11 @@ class IChingApp {
         throw new Error(broadcastResponse.reason || broadcastResponse.error);
       }
 
-      // Save to history
+      // Save to history (localStorage keeps plaintext for local display)
       this.saveHexagramRecord(broadcastResponse.txid || broadcastResponse);
 
-      console.log(`✅ Transaction successful: ${broadcastResponse.txid}`);
-      alert(`✅ Hexagram submitted to blockchain!\n\nTX ID: ${broadcastResponse.txid}`);
+      console.log(`Transaction successful: ${broadcastResponse.txid}`);
+      alert(`Hexagram submitted to blockchain!\n\nTX ID: ${broadcastResponse.txid}`);
 
     } catch (error) {
       console.error('Error submitting to blockchain:', error);

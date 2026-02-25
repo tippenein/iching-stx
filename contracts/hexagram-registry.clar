@@ -1,13 +1,13 @@
 ;; title: Hexagram Registry
-;; version: 2.0
-;; summary: A contract to record I Ching hexagram readings with timestamps
-;; description: This contract allows users to submit hexagrams (6 lines, values 6-9) with timestamps.
-;; The transformed hexagram is derivable from the original (6->7, 7->7, 8->8, 9->6).
+;; version: 3.0
+;; summary: A contract to record encrypted I Ching hexagram readings with timestamps
+;; description: This contract allows users to submit encrypted hexagrams and record them
+;; permanently on the blockchain. Hexagram data is encrypted client-side before submission.
 
 ;; constants
 (define-constant ERR_UNAUTHORIZED (err u1))
 (define-constant ERR_INVALID_HEXAGRAM (err u2))
-(define-constant ERR_INVALID_LINE (err u3))
+(define-constant ERR_VRF_SEED_NOT_FOUND (err u3))
 
 ;; data vars
 (define-data-var next-id uint u1)
@@ -15,43 +15,42 @@
 ;; data maps
 (define-map hexagrams
   { id: uint, owner: principal }
-  { hexagram: (list 6 uint), timestamp: uint })
+  { hexagram: (buff 512), timestamp: uint })
 
-(define-map owner-hexagrams
+(define-map owner-hexagram-count
   { owner: principal }
-  { hexagram-ids: (list 100 uint) })
+  { count: uint })
+
+(define-map owner-hexagram-index
+  { owner: principal, index: uint }
+  { id: uint })
 
 ;; public functions
 (define-public (submit-hexagram
-  (hexagram (list 6 uint))
+  (hexagram (buff 512))
   (timestamp uint)
 )
   (let (
     (current-id (var-get next-id))
-    (valid (is-valid-hexagram hexagram))
+    (current-count (default-to u0 (get count (map-get? owner-hexagram-count { owner: tx-sender }))))
   )
-    (if valid
-      (begin
-        (map-insert hexagrams
-          { id: current-id, owner: tx-sender }
-          { hexagram: hexagram, timestamp: timestamp })
+    (asserts! (> (len hexagram) u0) ERR_INVALID_HEXAGRAM)
+    (asserts! (> timestamp u0) ERR_INVALID_HEXAGRAM)
 
-        (let (
-          (existing-ids-entry (map-get? owner-hexagrams { owner: tx-sender }))
-        )
-          (if (is-none existing-ids-entry)
-            (map-insert owner-hexagrams
-              { owner: tx-sender }
-              { hexagram-ids: (list current-id) })
-            true
-          )
-        )
+    (map-set hexagrams
+      { id: current-id, owner: tx-sender }
+      { hexagram: hexagram, timestamp: timestamp })
 
-        (var-set next-id (+ current-id u1))
-        (ok current-id)
-      )
-      (err u2)
-    )
+    (map-set owner-hexagram-count
+      { owner: tx-sender }
+      { count: (+ current-count u1) })
+
+    (map-set owner-hexagram-index
+      { owner: tx-sender, index: current-count }
+      { id: current-id })
+
+    (var-set next-id (+ current-id u1))
+    (ok current-id)
   )
 )
 
@@ -75,43 +74,58 @@
   (- (var-get next-id) u1)
 )
 
-(define-read-only (get-hexagrams-by-owner (owner principal))
-  (match (map-get? owner-hexagrams { owner: owner })
-    entry (get hexagram-ids entry)
-    (list)
-  )
+(define-read-only (get-owner-hexagram-count (owner principal))
+  (default-to u0 (get count (map-get? owner-hexagram-count { owner: owner })))
 )
 
-;; private functions
-(define-private (is-valid-hexagram (hexagram (list 6 uint)))
-  (let (
-    (line1 (element-at? hexagram u0))
-    (line2 (element-at? hexagram u1))
-    (line3 (element-at? hexagram u2))
-    (line4 (element-at? hexagram u3))
-    (line5 (element-at? hexagram u4))
-    (line6 (element-at? hexagram u5))
-  )
-    (and
-      (is-some line1) (is-valid-line (unwrap-panic line1))
-      (is-some line2) (is-valid-line (unwrap-panic line2))
-      (is-some line3) (is-valid-line (unwrap-panic line3))
-      (is-some line4) (is-valid-line (unwrap-panic line4))
-      (is-some line5) (is-valid-line (unwrap-panic line5))
-      (is-some line6) (is-valid-line (unwrap-panic line6))
-    )
-  )
-)
-
-(define-private (is-valid-line (line uint))
-  (or
-    (is-eq line u6)  ;; old yin - broken line that transforms to solid
-    (is-eq line u7)  ;; young yang - solid line
-    (is-eq line u8)  ;; young yin - broken line
-    (is-eq line u9)  ;; old yang - solid line that transforms to broken
-  )
+(define-read-only (get-owner-hexagram-id-at-index (owner principal) (index uint))
+  (map-get? owner-hexagram-index { owner: owner, index: index })
 )
 
 (define-read-only (get-hexagram-entry (id uint) (owner principal))
   (map-get? hexagrams { id: id, owner: owner })
+)
+
+;; private helpers for VRF-based hexagram generation
+(define-private (derive-line (seed (buff 32)) (index uint))
+  (let (
+    (hash (keccak256 (concat seed (unwrap-panic (to-consensus-buff? index)))))
+    (slice16 (unwrap-panic (as-max-len? (unwrap-panic (slice? hash u0 u16)) u16)))
+    (rand (buff-to-uint-be slice16))
+  )
+    (+ u6 (mod rand u4))
+  )
+)
+
+;; public function: generate a hexagram on-chain using VRF randomness
+(define-public (roll-hexagram)
+  (let (
+    (vrf-seed (unwrap! (get-block-info? vrf-seed (- block-height u1)) ERR_VRF_SEED_NOT_FOUND))
+    (personal-seed (keccak256 (concat vrf-seed (unwrap-panic (to-consensus-buff? tx-sender)))))
+    (line0 (derive-line personal-seed u0))
+    (line1 (derive-line personal-seed u1))
+    (line2 (derive-line personal-seed u2))
+    (line3 (derive-line personal-seed u3))
+    (line4 (derive-line personal-seed u4))
+    (line5 (derive-line personal-seed u5))
+    (lines (list line0 line1 line2 line3 line4 line5))
+    (current-id (var-get next-id))
+    (current-count (default-to u0 (get count (map-get? owner-hexagram-count { owner: tx-sender }))))
+    (hexagram-buf (unwrap-panic (to-consensus-buff? lines)))
+  )
+    (map-set hexagrams
+      { id: current-id, owner: tx-sender }
+      { hexagram: hexagram-buf, timestamp: block-height })
+
+    (map-set owner-hexagram-count
+      { owner: tx-sender }
+      { count: (+ current-count u1) })
+
+    (map-set owner-hexagram-index
+      { owner: tx-sender, index: current-count }
+      { id: current-id })
+
+    (var-set next-id (+ current-id u1))
+    (ok { id: current-id, lines: lines })
+  )
 )
