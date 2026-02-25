@@ -16,8 +16,13 @@ import {
   getPublicKeyFromPrivate,
 } from "@stacks/encryption";
 
-import { AppConfig, UserSession } from "@stacks/auth";
-import { showConnect, openContractCall } from "@stacks/connect";
+import {
+  connect,
+  request,
+  disconnect,
+  isConnected,
+  getLocalStorage,
+} from "@stacks/connect";
 
 // Configuration constants
 const CONTRACT_CONFIG = {
@@ -34,10 +39,6 @@ const CONTRACT_CONFIG = {
 // Deployer private key — used ONLY on devnet (localhost)
 const DEVNET_DEPLOYER_KEY =
   "753b7cc01a1a2e86221266a154af739463fce51219d97e4f856cd7200c3bd2a601";
-
-// Wallet session (used on mainnet for real wallet connection)
-const appConfig = new AppConfig(["store_write"]);
-const userSession = new UserSession({ appConfig });
 
 // Utility functions
 function isDevnet() {
@@ -68,7 +69,7 @@ class IChingApp {
     this.appPrivateKey = null;
     this.appPublicKey = null;
 
-    console.log(`I Ching App initialized on ${getCurrentNetwork()} network`);
+    console.log(`Divining...`);
 
     this.initializeElements();
     this.bindEvents();
@@ -123,13 +124,12 @@ class IChingApp {
           localStorage.removeItem("stacks-session");
         }
       }
-    } else if (userSession.isUserSignedIn()) {
-      const userData = userSession.loadUserData();
-      this.isAuthenticated = true;
-      this.currentAddress = userData.profile?.stxAddress?.mainnet;
-      this.appPrivateKey = userData.appPrivateKey;
-      if (this.appPrivateKey) {
-        this.appPublicKey = getPublicKeyFromPrivate(this.appPrivateKey);
+    } else if (isConnected()) {
+      const data = getLocalStorage();
+      const stxAddr = data?.addresses?.stx?.[0]?.address;
+      if (stxAddr) {
+        this.isAuthenticated = true;
+        this.currentAddress = stxAddr;
       }
     }
   }
@@ -155,26 +155,19 @@ class IChingApp {
       this.updateUI();
     } else {
       // Real wallet connection (Leather / Xverse)
-      showConnect({
-        appDetails: {
-          name: "I Ching",
-          icon: window.location.origin + "/favicon.svg",
-        },
-        onFinish: () => {
-          const userData = userSession.loadUserData();
+      try {
+        const result = await connect();
+        const stxAddr =
+          result.addresses.find((a) => a.symbol === "STX")?.address ||
+          result.addresses[0]?.address;
+        if (stxAddr) {
           this.isAuthenticated = true;
-          this.currentAddress = userData.profile?.stxAddress?.mainnet;
-          this.appPrivateKey = userData.appPrivateKey;
-          if (this.appPrivateKey) {
-            this.appPublicKey = getPublicKeyFromPrivate(this.appPrivateKey);
-          }
+          this.currentAddress = stxAddr;
           this.updateUI();
-        },
-        onCancel: () => {
-          console.log("Wallet connection cancelled");
-        },
-        userSession,
-      });
+        }
+      } catch (error) {
+        console.error("Wallet connection failed:", error);
+      }
     }
   }
 
@@ -183,8 +176,8 @@ class IChingApp {
     this.currentAddress = null;
     this.appPrivateKey = null;
     this.appPublicKey = null;
-    if (!isDevnet() && userSession.isUserSignedIn()) {
-      userSession.signUserOut();
+    if (!isDevnet()) {
+      disconnect();
     }
     localStorage.removeItem("stacks-session");
     this.updateUI();
@@ -416,22 +409,19 @@ class IChingApp {
         );
       } else {
         // Mainnet: wallet signs the transaction
-        openContractCall({
-          contractAddress: contractConfig.address,
-          contractName: contractConfig.name,
+        const result = await request("stx_callContract", {
+          contract: `${contractConfig.address}.${contractConfig.name}`,
           functionName: "submit-hexagram",
           functionArgs: [hexagramCV, timestampCV],
           network: "mainnet",
-          postConditionMode: PostConditionMode.Allow,
-          onFinish: (data) => {
-            this.saveHexagramRecord(data.txId);
-            console.log(`Transaction successful: ${data.txId}`);
-            alert(`Hexagram submitted to blockchain!\n\nTX ID: ${data.txId}`);
-          },
-          onCancel: () => {
-            console.log("Transaction cancelled by user");
-          },
+          postConditionMode: "allow",
         });
+
+        if (result.txid) {
+          this.saveHexagramRecord(result.txid);
+          console.log(`Transaction successful: ${result.txid}`);
+          alert(`Hexagram submitted to blockchain!\n\nTX ID: ${result.txid}`);
+        }
       }
     } catch (error) {
       console.error("Error submitting to blockchain:", error);
