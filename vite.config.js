@@ -9,10 +9,10 @@ export default defineConfig({
   build: {
     outDir: '../dist',
     emptyOutDir: true,
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
         manualChunks: {
-          'stacks-connect': ['@stacks/connect'],
           'stacks-tx': ['@stacks/transactions', '@stacks/network'],
           'stacks-crypto': ['@stacks/encryption'],
         }

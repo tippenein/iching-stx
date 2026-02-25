@@ -16,13 +16,14 @@ import {
   getPublicKeyFromPrivate,
 } from "@stacks/encryption";
 
-import {
-  connect,
-  request,
-  disconnect,
-  isConnected,
-  getLocalStorage,
-} from "@stacks/connect";
+// @stacks/connect is dynamically imported to reduce initial bundle size
+let _stacksConnect = null;
+async function getStacksConnect() {
+  if (!_stacksConnect) {
+    _stacksConnect = await import("@stacks/connect");
+  }
+  return _stacksConnect;
+}
 
 // Configuration constants
 const CONTRACT_CONFIG = {
@@ -76,8 +77,7 @@ class IChingApp {
     this.createRecordCircles();
     this.updatePreviewFromRecord();
     this.loadHistory();
-    this.restoreSession();
-    this.updateUI();
+    this.restoreSession().then(() => this.updateUI());
   }
 
   initializeElements() {
@@ -109,7 +109,7 @@ class IChingApp {
     }
   }
 
-  restoreSession() {
+  async restoreSession() {
     if (isDevnet()) {
       const saved = localStorage.getItem("stacks-session");
       if (saved) {
@@ -124,12 +124,15 @@ class IChingApp {
           localStorage.removeItem("stacks-session");
         }
       }
-    } else if (isConnected()) {
-      const data = getLocalStorage();
-      const stxAddr = data?.addresses?.stx?.[0]?.address;
-      if (stxAddr) {
-        this.isAuthenticated = true;
-        this.currentAddress = stxAddr;
+    } else {
+      const { isConnected, getLocalStorage } = await getStacksConnect();
+      if (isConnected()) {
+        const data = getLocalStorage();
+        const stxAddr = data?.addresses?.stx?.[0]?.address;
+        if (stxAddr) {
+          this.isAuthenticated = true;
+          this.currentAddress = stxAddr;
+        }
       }
     }
   }
@@ -156,6 +159,7 @@ class IChingApp {
     } else {
       // Real wallet connection (Leather / Xverse)
       try {
+        const { connect } = await getStacksConnect();
         const result = await connect();
         const stxEntry = result.addresses.find((a) => a.symbol === "STX")
           || result.addresses[0];
@@ -173,12 +177,13 @@ class IChingApp {
     }
   }
 
-  logout() {
+  async logout() {
     this.isAuthenticated = false;
     this.currentAddress = null;
     this.appPrivateKey = null;
     this.appPublicKey = null;
     if (!isDevnet()) {
+      const { disconnect } = await getStacksConnect();
       disconnect();
     }
     localStorage.removeItem("stacks-session");
@@ -186,7 +191,13 @@ class IChingApp {
   }
 
   getEncryptionPublicKey() {
-    if (this.appPublicKey) return this.appPublicKey;
+    if (this.appPublicKey) {
+      // Strip 0x prefix if present — @stacks/encryption expects raw hex
+      const key = this.appPublicKey.startsWith("0x")
+        ? this.appPublicKey.slice(2)
+        : this.appPublicKey;
+      return key;
+    }
     if (isDevnet()) return getPublicKeyFromPrivate(DEVNET_DEPLOYER_KEY);
     throw new Error("No encryption key available. Please connect your wallet.");
   }
@@ -411,6 +422,7 @@ class IChingApp {
         );
       } else {
         // Mainnet: wallet signs the transaction
+        const { request } = await getStacksConnect();
         const result = await request("stx_callContract", {
           contract: `${contractConfig.address}.${contractConfig.name}`,
           functionName: "submit-hexagram",
@@ -427,7 +439,8 @@ class IChingApp {
       }
     } catch (error) {
       console.error("Error submitting to blockchain:", error);
-      alert("Error submitting to blockchain: " + error.message);
+      const msg = error?.message || error?.reason_data || JSON.stringify(error);
+      alert("Error submitting to blockchain: " + msg);
     }
   }
 
