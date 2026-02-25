@@ -334,7 +334,7 @@ class IChingApp {
       case 8:
         return 8;
       case 9:
-        return 6;
+        return 8;
       default:
         return value;
     }
@@ -450,7 +450,23 @@ class IChingApp {
   }
 
   hexagramNumber(binaryValues) {
-    return binaryValues.reduce((sum, bit, i) => sum + (bit << i), 0);
+    // King Wen sequence lookup via upper/lower trigrams
+    // Trigram binary (yang=1 yin=0, LSB=bottom line) → index in table
+    // Order: Qian(7)=0, Kun(0)=1, Zhen(1)=2, Kan(2)=3, Gen(4)=4, Xun(6)=5, Li(5)=6, Dui(3)=7
+    const trigramIndex = [1, 2, 3, 7, 4, 6, 5, 0];
+    const kingWen = [
+      [ 1, 11, 34,  5, 26,  9, 14, 43], // Qian lower
+      [12,  2, 16,  8, 23, 20, 35, 45], // Kun lower
+      [25, 24, 51,  3, 27, 42, 21, 17], // Zhen lower
+      [ 6,  7, 40, 29,  4, 59, 64, 47], // Kan lower
+      [33, 15, 62, 39, 52, 53, 56, 31], // Gen lower
+      [44, 46, 32, 48, 18, 57, 50, 28], // Xun lower
+      [13, 36, 55, 63, 22, 37, 30, 49], // Li lower
+      [10, 19, 54, 60, 41, 61, 38, 58], // Dui lower
+    ];
+    const lower = binaryValues[0] + binaryValues[1] * 2 + binaryValues[2] * 4;
+    const upper = binaryValues[3] + binaryValues[4] * 2 + binaryValues[5] * 4;
+    return kingWen[trigramIndex[lower]][trigramIndex[upper]];
   }
 
   renderMiniHexagram(binaryValues) {
