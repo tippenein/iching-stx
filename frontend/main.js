@@ -5,56 +5,56 @@ import {
   uintCV,
   bufferCV,
   AnchorMode,
-  PostConditionMode
-} from '@stacks/transactions'
+  PostConditionMode,
+} from "@stacks/transactions";
 
-import {
-  STACKS_DEVNET,
-  STACKS_TESTNET,
-  STACKS_MAINNET
-} from '@stacks/network'
+import { STACKS_DEVNET, STACKS_MAINNET } from "@stacks/network";
 
 import {
   encryptContent,
   decryptContent,
-  getPublicKeyFromPrivate
-} from '@stacks/encryption'
+  getPublicKeyFromPrivate,
+} from "@stacks/encryption";
+
+import { AppConfig, UserSession } from "@stacks/auth";
+import { showConnect, openContractCall } from "@stacks/connect";
 
 // Configuration constants
 const CONTRACT_CONFIG = {
   devnet: {
-    address: 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM',
-    name: 'hexagram-registry'
+    address: "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM",
+    name: "hexagram-registry",
   },
-  testnet: {
-    address: 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM',
-    name: 'hexagram-registry'
-  }
+  mainnet: {
+    address: "SPZW1F5W7XT81NV8B8SHA71S1YJ04V76HQBPNQ5Z",
+    name: "hexagram-registry",
+  },
 };
 
-// Deployer private key for devnet testing (only safe for local development)
-const DEVNET_DEPLOYER_KEY = '753b7cc01a1a2e86221266a154af739463fce51219d97e4f856cd7200c3bd2a601';
-const DEVNET_DEPLOYER_PUBKEY = getPublicKeyFromPrivate(DEVNET_DEPLOYER_KEY);
+// Deployer private key — used ONLY on devnet (localhost)
+const DEVNET_DEPLOYER_KEY =
+  "753b7cc01a1a2e86221266a154af739463fce51219d97e4f856cd7200c3bd2a601";
+
+// Wallet session (used on mainnet for real wallet connection)
+const appConfig = new AppConfig(["store_write"]);
+const userSession = new UserSession({ appConfig });
 
 // Utility functions
-function getCurrentNetwork() {
+function isDevnet() {
   const hostname = window.location.hostname;
-  return (hostname === 'localhost' || hostname === '127.0.0.1') ? 'devnet' : 'testnet';
+  return hostname === "localhost" || hostname === "127.0.0.1";
+}
+
+function getCurrentNetwork() {
+  return isDevnet() ? "devnet" : "mainnet";
 }
 
 function getNetworkConfig() {
-  const network = getCurrentNetwork();
-  switch (network) {
-    case 'devnet': return STACKS_DEVNET;
-    case 'testnet': return STACKS_TESTNET;
-    case 'mainnet': return STACKS_MAINNET;
-    default: return STACKS_DEVNET;
-  }
+  return isDevnet() ? STACKS_DEVNET : STACKS_MAINNET;
 }
 
 function getContractConfig() {
-  const network = getCurrentNetwork();
-  return CONTRACT_CONFIG[network];
+  return CONTRACT_CONFIG[getCurrentNetwork()];
 }
 
 // I Ching App Class
@@ -75,33 +75,62 @@ class IChingApp {
     this.createRecordCircles();
     this.updatePreviewFromRecord();
     this.loadHistory();
+    this.restoreSession();
     this.updateUI();
   }
 
   initializeElements() {
-    this.connectBtn = document.getElementById('connect-btn');
-    this.submitBtn = document.getElementById('submit-btn');
-    this.addressDisplay = document.getElementById('address-display');
-    this.currentHexagramDiv = document.getElementById('current-hexagram');
-    this.transformedHexagramDiv = document.getElementById('transformed-hexagram');
-    this.historyDiv = document.getElementById('hexagram-history');
-    this.recordLinesDiv = document.getElementById('record-lines');
+    this.connectBtn = document.getElementById("connect-btn");
+    this.submitBtn = document.getElementById("submit-btn");
+    this.addressDisplay = document.getElementById("address-display");
+    this.currentHexagramDiv = document.getElementById("current-hexagram");
+    this.transformedHexagramDiv = document.getElementById(
+      "transformed-hexagram",
+    );
+    this.historyDiv = document.getElementById("hexagram-history");
+    this.recordLinesDiv = document.getElementById("record-lines");
   }
 
   bindEvents() {
-    this.connectBtn.addEventListener('click', () => this.handleConnect());
-    this.submitBtn.addEventListener('click', () => this.submitToBlockchain());
+    this.connectBtn.addEventListener("click", () => this.handleConnect());
+    this.submitBtn.addEventListener("click", () => this.submitToBlockchain());
   }
 
   updateUI() {
     if (this.isAuthenticated && this.currentAddress) {
       this.addressDisplay.textContent = this.currentAddress;
-      this.connectBtn.textContent = 'Disconnect';
+      this.connectBtn.textContent = "Disconnect";
       this.submitBtn.disabled = false;
     } else {
-      this.addressDisplay.textContent = 'Not connected';
-      this.connectBtn.textContent = 'Connect Wallet';
+      this.addressDisplay.textContent = "Not connected";
+      this.connectBtn.textContent = "Connect Wallet";
       this.submitBtn.disabled = true;
+    }
+  }
+
+  restoreSession() {
+    if (isDevnet()) {
+      const saved = localStorage.getItem("stacks-session");
+      if (saved) {
+        try {
+          const authData = JSON.parse(saved);
+          const address = authData.profile?.stxAddress?.testnet;
+          if (address) {
+            this.isAuthenticated = true;
+            this.currentAddress = address;
+          }
+        } catch (e) {
+          localStorage.removeItem("stacks-session");
+        }
+      }
+    } else if (userSession.isUserSignedIn()) {
+      const userData = userSession.loadUserData();
+      this.isAuthenticated = true;
+      this.currentAddress = userData.profile?.stxAddress?.mainnet;
+      this.appPrivateKey = userData.appPrivateKey;
+      if (this.appPrivateKey) {
+        this.appPublicKey = getPublicKeyFromPrivate(this.appPrivateKey);
+      }
     }
   }
 
@@ -111,36 +140,41 @@ class IChingApp {
       return;
     }
 
-    try {
-      // Demo wallet for testing - replace with real wallet integration as needed
-      const demoAddress = 'ST1DEMO' + Math.random().toString(36).substring(2, 8).toUpperCase();
-      this.authenticateUser({
-        profile: {
-          stxAddress: {
-            testnet: demoAddress
-          }
-        }
-      });
-    } catch (error) {
-      console.error('Error connecting wallet:', error);
-      alert('Error connecting wallet: ' + error.message);
-    }
-  }
-
-  authenticateUser(authData) {
-    const address = authData.profile?.stxAddress?.testnet || authData.profile?.stxAddress?.mainnet;
-
-    if (address) {
+    if (isDevnet()) {
+      // Demo wallet for local devnet testing
+      const demoAddress =
+        "ST1DEMO" + Math.random().toString(36).substring(2, 8).toUpperCase();
       this.isAuthenticated = true;
-      this.currentAddress = address;
-
-      if (authData.appPrivateKey) {
-        this.appPrivateKey = authData.appPrivateKey;
-        this.appPublicKey = getPublicKeyFromPrivate(authData.appPrivateKey);
-      }
-
-      localStorage.setItem('stacks-session', JSON.stringify(authData));
+      this.currentAddress = demoAddress;
+      localStorage.setItem(
+        "stacks-session",
+        JSON.stringify({
+          profile: { stxAddress: { testnet: demoAddress } },
+        }),
+      );
       this.updateUI();
+    } else {
+      // Real wallet connection (Leather / Xverse)
+      showConnect({
+        appDetails: {
+          name: "I Ching",
+          icon: window.location.origin + "/favicon.svg",
+        },
+        onFinish: () => {
+          const userData = userSession.loadUserData();
+          this.isAuthenticated = true;
+          this.currentAddress = userData.profile?.stxAddress?.mainnet;
+          this.appPrivateKey = userData.appPrivateKey;
+          if (this.appPrivateKey) {
+            this.appPublicKey = getPublicKeyFromPrivate(this.appPrivateKey);
+          }
+          this.updateUI();
+        },
+        onCancel: () => {
+          console.log("Wallet connection cancelled");
+        },
+        userSession,
+      });
     }
   }
 
@@ -149,16 +183,23 @@ class IChingApp {
     this.currentAddress = null;
     this.appPrivateKey = null;
     this.appPublicKey = null;
-    localStorage.removeItem('stacks-session');
+    if (!isDevnet() && userSession.isUserSignedIn()) {
+      userSession.signUserOut();
+    }
+    localStorage.removeItem("stacks-session");
     this.updateUI();
   }
 
   getEncryptionPublicKey() {
-    return this.appPublicKey || DEVNET_DEPLOYER_PUBKEY;
+    if (this.appPublicKey) return this.appPublicKey;
+    if (isDevnet()) return getPublicKeyFromPrivate(DEVNET_DEPLOYER_KEY);
+    throw new Error("No encryption key available. Please connect your wallet.");
   }
 
   getDecryptionPrivateKey() {
-    return this.appPrivateKey || DEVNET_DEPLOYER_KEY;
+    if (this.appPrivateKey) return this.appPrivateKey;
+    if (isDevnet()) return DEVNET_DEPLOYER_KEY;
+    throw new Error("No decryption key available. Please connect your wallet.");
   }
 
   async encryptHexagram(values) {
@@ -175,27 +216,27 @@ class IChingApp {
   }
 
   displayHexagram(hexagram, container, label) {
-    container.innerHTML = '';
+    container.innerHTML = "";
 
-    const allFilled = hexagram.every(v => v !== null);
+    const allFilled = hexagram.every((v) => v !== null);
     if (!allFilled) {
-      container.classList.add('grayed-out');
+      container.classList.add("grayed-out");
     } else {
-      container.classList.remove('grayed-out');
+      container.classList.remove("grayed-out");
     }
 
-    const labelDiv = document.createElement('div');
-    labelDiv.className = 'hexagram-label';
+    const labelDiv = document.createElement("div");
+    labelDiv.className = "hexagram-label";
     labelDiv.textContent = label;
     container.appendChild(labelDiv);
 
     for (let i = 0; i < hexagram.length; i++) {
       const lineValue = hexagram[i];
-      const lineDiv = document.createElement('div');
-      lineDiv.className = 'hexagram-line';
+      const lineDiv = document.createElement("div");
+      lineDiv.className = "hexagram-line";
 
       if (lineValue === null) {
-        lineDiv.classList.add('placeholder');
+        lineDiv.classList.add("placeholder");
         lineDiv.innerHTML = `<div class="placeholder-line"></div>`;
       } else if (lineValue === 6 || lineValue === 8) {
         lineDiv.innerHTML = `
@@ -213,46 +254,46 @@ class IChingApp {
       container.appendChild(lineDiv);
     }
 
-    const numberDiv = document.createElement('div');
-    numberDiv.className = 'hexagram-number';
+    const numberDiv = document.createElement("div");
+    numberDiv.className = "hexagram-number";
     if (allFilled) {
       const binary = this.toBinary(hexagram);
       numberDiv.textContent = this.hexagramNumber(binary);
     } else {
-      numberDiv.textContent = '—';
+      numberDiv.textContent = "—";
     }
     container.appendChild(numberDiv);
   }
 
   createRecordCircles() {
-    this.recordLinesDiv.innerHTML = '';
+    this.recordLinesDiv.innerHTML = "";
 
     for (let i = 0; i < 6; i++) {
-      const row = document.createElement('div');
-      row.className = 'record-row';
+      const row = document.createElement("div");
+      row.className = "record-row";
 
-      const lineLabel = document.createElement('span');
-      lineLabel.className = 'record-line-label';
+      const lineLabel = document.createElement("span");
+      lineLabel.className = "record-line-label";
       lineLabel.textContent = i + 1;
       row.appendChild(lineLabel);
 
       const value = this.recordValues[i];
-      const circle = document.createElement('div');
+      const circle = document.createElement("div");
 
       if (value === null) {
-        circle.className = 'record-circle unfilled';
-        circle.textContent = '—';
+        circle.className = "record-circle unfilled";
+        circle.textContent = "—";
       } else {
-        circle.className = `record-circle ${this.isChangingLine(value) ? 'changing' : 'stable'}`;
+        circle.className = `record-circle ${this.isChangingLine(value) ? "changing" : "stable"}`;
         circle.textContent = value;
       }
 
-      circle.addEventListener('click', () => this.cycleRecordValue(i));
+      circle.addEventListener("click", () => this.cycleRecordValue(i));
       row.appendChild(circle);
 
-      const typeLabel = document.createElement('span');
-      typeLabel.className = 'record-type-label';
-      typeLabel.textContent = value === null ? '' : this.getLineTypeName(value);
+      const typeLabel = document.createElement("span");
+      typeLabel.className = "record-type-label";
+      typeLabel.textContent = value === null ? "" : this.getLineTypeName(value);
       row.appendChild(typeLabel);
 
       this.recordLinesDiv.appendChild(row);
@@ -264,7 +305,8 @@ class IChingApp {
     if (this.recordValues[index] === null) {
       this.recordValues[index] = cycle[0];
     } else {
-      const nextIndex = (cycle.indexOf(this.recordValues[index]) + 1) % cycle.length;
+      const nextIndex =
+        (cycle.indexOf(this.recordValues[index]) + 1) % cycle.length;
       this.recordValues[index] = cycle[nextIndex];
     }
     this.createRecordCircles();
@@ -273,30 +315,50 @@ class IChingApp {
 
   updatePreviewFromRecord() {
     this.currentHexagram = [...this.recordValues];
-    this.transformedHexagram = this.recordValues.map(v => v === null ? null : this.getTransformedValue(v));
-    this.displayHexagram(this.currentHexagram, this.currentHexagramDiv, "Current Hexagram");
-    this.displayHexagram(this.transformedHexagram, this.transformedHexagramDiv, "Future Hexagram");
-    const allFilled = this.recordValues.every(v => v !== null);
+    this.transformedHexagram = this.recordValues.map((v) =>
+      v === null ? null : this.getTransformedValue(v),
+    );
+    this.displayHexagram(
+      this.currentHexagram,
+      this.currentHexagramDiv,
+      "Current Hexagram",
+    );
+    this.displayHexagram(
+      this.transformedHexagram,
+      this.transformedHexagramDiv,
+      "Future Hexagram",
+    );
+    const allFilled = this.recordValues.every((v) => v !== null);
     this.submitBtn.disabled = !this.isAuthenticated || !allFilled;
   }
 
   getTransformedValue(value) {
     switch (value) {
-      case 6: return 7;
-      case 7: return 7;
-      case 8: return 8;
-      case 9: return 6;
-      default: return value;
+      case 6:
+        return 7;
+      case 7:
+        return 7;
+      case 8:
+        return 8;
+      case 9:
+        return 6;
+      default:
+        return value;
     }
   }
 
   getLineTypeName(value) {
     switch (value) {
-      case 6: return 'Old Yin (Changing)';
-      case 7: return 'Young Yang';
-      case 8: return 'Young Yin';
-      case 9: return 'Old Yang (Changing)';
-      default: return '';
+      case 6:
+        return "Old Yin (Changing)";
+      case 7:
+        return "Young Yang";
+      case 8:
+        return "Young Yin";
+      case 9:
+        return "Old Yang (Changing)";
+      default:
+        return "";
     }
   }
 
@@ -306,14 +368,15 @@ class IChingApp {
 
   async submitToBlockchain() {
     if (!this.isAuthenticated) {
-      alert('Please connect your wallet first!');
+      alert("Please connect your wallet first!");
       return;
     }
 
     try {
-      console.log(`Submitting hexagram to ${getCurrentNetwork()} blockchain...`);
+      console.log(
+        `Submitting hexagram to ${getCurrentNetwork()} blockchain...`,
+      );
 
-      const networkConfig = getNetworkConfig();
       const contractConfig = getContractConfig();
 
       // Encrypt hexagram data before submitting
@@ -322,37 +385,57 @@ class IChingApp {
       const hexagramCV = bufferCV(cipherBytes);
       const timestampCV = uintCV(Math.floor(Date.now() / 1000));
 
-      const txOptions = {
-        contractAddress: contractConfig.address,
-        contractName: contractConfig.name,
-        functionName: 'submit-hexagram',
-        functionArgs: [hexagramCV, timestampCV],
-        senderKey: DEVNET_DEPLOYER_KEY,
-        network: networkConfig,
-        anchorMode: AnchorMode.Any,
-        postConditionMode: PostConditionMode.Allow
-      };
+      if (isDevnet()) {
+        // Devnet: sign directly with deployer key
+        const networkConfig = getNetworkConfig();
+        const txOptions = {
+          contractAddress: contractConfig.address,
+          contractName: contractConfig.name,
+          functionName: "submit-hexagram",
+          functionArgs: [hexagramCV, timestampCV],
+          senderKey: DEVNET_DEPLOYER_KEY,
+          network: networkConfig,
+          anchorMode: AnchorMode.Any,
+          postConditionMode: PostConditionMode.Allow,
+        };
 
-      // Create and broadcast transaction
-      const transaction = await makeContractCall(txOptions);
-      const broadcastResponse = await broadcastTransaction({
-        transaction: transaction,
-        network: networkConfig
-      });
+        const transaction = await makeContractCall(txOptions);
+        const broadcastResponse = await broadcastTransaction({
+          transaction,
+          network: networkConfig,
+        });
 
-      if (broadcastResponse.error) {
-        throw new Error(broadcastResponse.reason || broadcastResponse.error);
+        if (broadcastResponse.error) {
+          throw new Error(broadcastResponse.reason || broadcastResponse.error);
+        }
+
+        this.saveHexagramRecord(broadcastResponse.txid || broadcastResponse);
+        console.log(`Transaction successful: ${broadcastResponse.txid}`);
+        alert(
+          `Hexagram submitted to blockchain!\n\nTX ID: ${broadcastResponse.txid}`,
+        );
+      } else {
+        // Mainnet: wallet signs the transaction
+        openContractCall({
+          contractAddress: contractConfig.address,
+          contractName: contractConfig.name,
+          functionName: "submit-hexagram",
+          functionArgs: [hexagramCV, timestampCV],
+          network: "mainnet",
+          postConditionMode: PostConditionMode.Allow,
+          onFinish: (data) => {
+            this.saveHexagramRecord(data.txId);
+            console.log(`Transaction successful: ${data.txId}`);
+            alert(`Hexagram submitted to blockchain!\n\nTX ID: ${data.txId}`);
+          },
+          onCancel: () => {
+            console.log("Transaction cancelled by user");
+          },
+        });
       }
-
-      // Save to history (localStorage keeps plaintext for local display)
-      this.saveHexagramRecord(broadcastResponse.txid || broadcastResponse);
-
-      console.log(`Transaction successful: ${broadcastResponse.txid}`);
-      alert(`Hexagram submitted to blockchain!\n\nTX ID: ${broadcastResponse.txid}`);
-
     } catch (error) {
-      console.error('Error submitting to blockchain:', error);
-      alert('Error submitting to blockchain: ' + error.message);
+      console.error("Error submitting to blockchain:", error);
+      alert("Error submitting to blockchain: " + error.message);
     }
   }
 
@@ -363,17 +446,17 @@ class IChingApp {
       timestamp: Date.now(),
       date: new Date().toISOString(),
       txId: txId,
-      network: getCurrentNetwork()
+      network: getCurrentNetwork(),
     };
 
-    const records = JSON.parse(localStorage.getItem('ichingRecords') || '[]');
+    const records = JSON.parse(localStorage.getItem("ichingRecords") || "[]");
     records.push(hexagramRecord);
-    localStorage.setItem('ichingRecords', JSON.stringify(records));
+    localStorage.setItem("ichingRecords", JSON.stringify(records));
     this.loadHistory();
   }
 
   toBinary(values) {
-    return values.map(v => (v === 7 || v === 9) ? 1 : 0);
+    return values.map((v) => (v === 7 || v === 9 ? 1 : 0));
   }
 
   hexagramNumber(binaryValues) {
@@ -381,37 +464,44 @@ class IChingApp {
   }
 
   renderMiniHexagram(binaryValues) {
-    return binaryValues.map(v => {
-      if (v === 1) {
-        return '<div class="mini-line solid"></div>';
-      }
-      return '<div class="mini-line broken"><span></span><span></span></div>';
-    }).join('');
+    return binaryValues
+      .map((v) => {
+        if (v === 1) {
+          return '<div class="mini-line solid"></div>';
+        }
+        return '<div class="mini-line broken"><span></span><span></span></div>';
+      })
+      .join("");
   }
 
   loadHistory() {
-    const records = JSON.parse(localStorage.getItem('ichingRecords') || '[]');
+    const records = JSON.parse(localStorage.getItem("ichingRecords") || "[]");
 
     if (records.length === 0) {
-      this.historyDiv.innerHTML = '<p>No hexagrams recorded yet.</p>';
+      this.historyDiv.innerHTML = "<p>No hexagrams recorded yet.</p>";
       return;
     }
 
-    this.historyDiv.innerHTML = '<ul></ul>';
-    const list = this.historyDiv.querySelector('ul');
+    this.historyDiv.innerHTML = "<ul></ul>";
+    const list = this.historyDiv.querySelector("ul");
 
-    records.slice().reverse().forEach(record => {
-      const li = document.createElement('li');
-      li.className = 'history-item';
+    records
+      .slice()
+      .reverse()
+      .forEach((record) => {
+        const li = document.createElement("li");
+        li.className = "history-item";
 
-      const date = new Date(record.date).toLocaleString();
-      const networkBadge = record.network ? `[${record.network}]` : '';
-      const currentBinary = this.toBinary(record.original);
-      const futureBinary = this.toBinary(record.original.map(v => this.getTransformedValue(v)));
-      const currentNumber = this.hexagramNumber(currentBinary);
-      const futureNumber = this.hexagramNumber(futureBinary);
+        const date = new Date(record.date).toLocaleString();
+        const networkBadge = record.network ? `[${record.network}]` : "";
+        const currentBinary = this.toBinary(record.original);
+        const futureBinary = this.toBinary(
+          record.original.map((v) => this.getTransformedValue(v)),
+        );
+        const currentNumber = this.hexagramNumber(currentBinary);
+        const futureNumber = this.hexagramNumber(futureBinary);
 
-      li.innerHTML = `
+        li.innerHTML = `
         <div class="history-date">${date} ${networkBadge}</div>
         <div class="history-hexagrams">
           <div class="mini-hexagram-group">
@@ -423,17 +513,17 @@ class IChingApp {
             <div class="mini-hexagram-number">${futureNumber}</div>
             <div class="mini-hexagram">${this.renderMiniHexagram(futureBinary)}</div>
           </div>
-          <div class="history-raw">${record.original.join('')}</div>
+          <div class="history-raw">${record.original.join("")}</div>
         </div>
-        ${record.txId ? `<div><small>TX: ${record.txId.substring(0, 20)}...</small></div>` : ''}
+        ${record.txId ? `<div><small>TX: ${record.txId.substring(0, 20)}...</small></div>` : ""}
       `;
 
-      list.appendChild(li);
-    });
+        list.appendChild(li);
+      });
   }
 }
 
 // Initialize the app when the page loads
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener("DOMContentLoaded", () => {
   window.ichingApp = new IChingApp();
 });

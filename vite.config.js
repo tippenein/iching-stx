@@ -18,7 +18,8 @@ export default defineConfig({
       '@stacks/transactions',
       '@stacks/network',
       '@stacks/auth',
-      '@stacks/connect'
+      '@stacks/connect',
+      '@stacks/encryption'
     ]
   }
 })

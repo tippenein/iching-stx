@@ -100,7 +100,7 @@
 ;; public function: generate a hexagram on-chain using VRF randomness
 (define-public (roll-hexagram)
   (let (
-    (vrf-seed (unwrap! (get-block-info? vrf-seed (- block-height u1)) ERR_VRF_SEED_NOT_FOUND))
+    (vrf-seed (unwrap! (get-tenure-info? vrf-seed (- stacks-block-height u1)) ERR_VRF_SEED_NOT_FOUND))
     (personal-seed (keccak256 (concat vrf-seed (unwrap-panic (to-consensus-buff? tx-sender)))))
     (line0 (derive-line personal-seed u0))
     (line1 (derive-line personal-seed u1))
@@ -115,7 +115,7 @@
   )
     (map-set hexagrams
       { id: current-id, owner: tx-sender }
-      { hexagram: hexagram-buf, timestamp: block-height })
+      { hexagram: hexagram-buf, timestamp: stacks-block-height })
 
     (map-set owner-hexagram-count
       { owner: tx-sender }
