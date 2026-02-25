@@ -6,6 +6,7 @@ import {
   bufferCV,
   AnchorMode,
   PostConditionMode,
+  getAddressFromPublicKey,
 } from "@stacks/transactions";
 
 import { STACKS_DEVNET, STACKS_MAINNET } from "@stacks/network";
@@ -167,7 +168,10 @@ class IChingApp {
           this.isAuthenticated = true;
           this.currentAddress = stxEntry.address;
           if (stxEntry.publicKey) {
-            this.appPublicKey = stxEntry.publicKey;
+            this.appPublicKey = this.resolveCompressedPublicKey(
+              stxEntry.publicKey,
+              stxEntry.address,
+            );
           }
           this.updateUI();
         }
@@ -190,14 +194,29 @@ class IChingApp {
     this.updateUI();
   }
 
-  getEncryptionPublicKey() {
-    if (this.appPublicKey) {
-      // Strip 0x prefix if present — @stacks/encryption expects raw hex
-      const key = this.appPublicKey.startsWith("0x")
-        ? this.appPublicKey.slice(2)
-        : this.appPublicKey;
-      return key;
+  resolveCompressedPublicKey(rawKey, address) {
+    // Strip 0x prefix if present
+    let key = rawKey.startsWith("0x") ? rawKey.slice(2) : rawKey;
+
+    // Already a valid compressed (66) or uncompressed (130) key
+    if (key.length === 66 || key.length === 130) return key;
+
+    // Raw 32-byte x-coordinate (64 chars) — need to find correct prefix
+    if (key.length === 64) {
+      for (const prefix of ["02", "03"]) {
+        const candidate = prefix + key;
+        const derived = getAddressFromPublicKey(candidate, "mainnet");
+        if (derived === address) return candidate;
+      }
+      // Fallback to 02 if address check fails (e.g. testnet address format)
+      return "02" + key;
     }
+
+    return key;
+  }
+
+  getEncryptionPublicKey() {
+    if (this.appPublicKey) return this.appPublicKey;
     if (isDevnet()) return getPublicKeyFromPrivate(DEVNET_DEPLOYER_KEY);
     throw new Error("No encryption key available. Please connect your wallet.");
   }
