@@ -100,11 +100,15 @@ class IChingApp {
 
   updateUI() {
     if (this.isAuthenticated && this.currentAddress) {
-      this.addressDisplay.textContent = this.currentAddress;
+      const addr = this.currentAddress;
+      this.addressDisplay.textContent =
+        addr.length > 16 ? addr.slice(0, 8) + "..." + addr.slice(-6) : addr;
+      this.addressDisplay.title = addr;
       this.connectBtn.textContent = "Disconnect";
       this.submitBtn.disabled = false;
     } else {
       this.addressDisplay.textContent = "Not connected";
+      this.addressDisplay.title = "";
       this.connectBtn.textContent = "Connect Wallet";
       this.submitBtn.disabled = true;
     }
@@ -325,6 +329,12 @@ class IChingApp {
     }
   }
 
+  clearRecord() {
+    this.recordValues = [null, null, null, null, null, null];
+    this.createRecordCircles();
+    this.updatePreviewFromRecord();
+  }
+
   cycleRecordValue(index) {
     const cycle = [6, 7, 8, 9];
     if (this.recordValues[index] === null) {
@@ -436,6 +446,7 @@ class IChingApp {
 
         this.saveHexagramRecord(broadcastResponse.txid || broadcastResponse);
         console.log(`Transaction successful: ${broadcastResponse.txid}`);
+        this.clearRecord();
         alert(
           `Hexagram submitted to blockchain!\n\nTX ID: ${broadcastResponse.txid}`,
         );
@@ -453,6 +464,7 @@ class IChingApp {
         if (result.txid) {
           this.saveHexagramRecord(result.txid);
           console.log(`Transaction successful: ${result.txid}`);
+          this.clearRecord();
           alert(`Hexagram submitted to blockchain!\n\nTX ID: ${result.txid}`);
         }
       }
@@ -533,7 +545,7 @@ class IChingApp {
         li.className = "history-item";
 
         const date = new Date(record.date).toLocaleString();
-        const networkBadge = record.network ? `[${record.network}]` : "";
+        const networkBadge = record.network && record.network !== "mainnet" ? `[${record.network}]` : "";
         const currentBinary = this.toBinary(record.original);
         const futureBinary = this.toBinary(
           record.original.map((v) => this.getTransformedValue(v)),
