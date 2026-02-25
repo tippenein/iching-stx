@@ -157,12 +157,14 @@ class IChingApp {
       // Real wallet connection (Leather / Xverse)
       try {
         const result = await connect();
-        const stxAddr =
-          result.addresses.find((a) => a.symbol === "STX")?.address ||
-          result.addresses[0]?.address;
-        if (stxAddr) {
+        const stxEntry = result.addresses.find((a) => a.symbol === "STX")
+          || result.addresses[0];
+        if (stxEntry?.address) {
           this.isAuthenticated = true;
-          this.currentAddress = stxAddr;
+          this.currentAddress = stxEntry.address;
+          if (stxEntry.publicKey) {
+            this.appPublicKey = stxEntry.publicKey;
+          }
           this.updateUI();
         }
       } catch (error) {
